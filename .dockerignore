@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+*.log
+.env
+.env.*
+coverage
+**/*.test.ts
+2026-*.md
+SHOPIFY_MCP_FORK_PLAN.md
+diagnostic.cjs
+direct_test.cjs

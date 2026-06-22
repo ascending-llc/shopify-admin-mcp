@@ -1,0 +1,59 @@
+# Build & push ONE image to ECR (D23). Deploy is a separate workflow (deploy.yml)
+# that bumps both the read and full deployments to the pushed tag.
+#
+# Modeled on the Salesforce DX MCP server's ci-asc.yml. The ECR account/region
+# below are placeholders — confirm with infra (see SHOPIFY_MCP_FORK_PLAN.md, the
+# §5 "Deploy artifacts" infra-config note). Repo: jarvis/shopify_mcp_server.
+name: Build and Push Image
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "AWS Region"
+        type: string
+        required: true
+        default: us-east-1
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ECR_REPOSITORY: jarvis/shopify_mcp_server
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: shopify-mcp-ecr-build
+          aws-region: ${{ inputs.region || 'us-east-1' }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          echo "tags=${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA},${REGISTRY}/${ECR_REPOSITORY}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

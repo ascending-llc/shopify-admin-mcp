@@ -1,0 +1,81 @@
+# Deploy to EKS (D23). Build once (docker-build-push.yml), then deploy the SAME
+# image as read OR full — the variant is chosen by the `mode` flag, which sets
+# SHOPIFY_MCP_MODE on the single `shopify-mcp` deployment. You deploy one or the
+# other per environment, not both.
+#
+# Cluster name / namespace / deployment name are placeholders — confirm with
+# infra (SHOPIFY_MCP_FORK_PLAN.md §5 "Deploy artifacts" infra-config note).
+name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "AWS Region"
+        type: string
+        required: true
+        default: us-east-1
+      application:
+        description: "Target application / namespace"
+        type: choice
+        required: true
+        default: jarvis-demo
+        options:
+          - jarvis
+          - jarvis-demo
+      mode:
+        description: "Permission mode to deploy"
+        type: choice
+        required: true
+        default: read
+        options:
+          - read
+          - full
+      tag:
+        description: "Image tag to deploy (default: latest)"
+        type: string
+        required: false
+        default: latest
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ECR_REPOSITORY: jarvis/shopify_mcp_server
+  EKS_CLUSTER_NAME: ascending-s-api-cluster
+  DEPLOYMENT_NAME: shopify-mcp
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: shopify-mcp-deploy
+          aws-region: ${{ inputs.region }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "${{ inputs.region }}"
+
+      - name: Deploy image + mode flag
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/jarvis/shopify_mcp_server:${{ inputs.tag }}
+          NS: ${{ inputs.application }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          kubectl set image "deploy/${DEPLOYMENT_NAME}" "${DEPLOYMENT_NAME}=${IMAGE}" -n "$NS"
+          kubectl set env "deploy/${DEPLOYMENT_NAME}" "SHOPIFY_MCP_MODE=${MODE}" -n "$NS"
+          kubectl rollout restart "deploy/${DEPLOYMENT_NAME}" -n "$NS"
+          kubectl rollout status "deploy/${DEPLOYMENT_NAME}" -n "$NS" --timeout=180s

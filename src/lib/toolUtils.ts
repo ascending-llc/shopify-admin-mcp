@@ -38,6 +38,29 @@ export interface ShopifyTool {
   execute(args: Record<string, unknown>): Promise<unknown>;
 }
 
+/**
+ * Read tools never mutate Shopify state; write tools do (create/update/delete/
+ * manage/set/order/merge/complete/refund/fulfill). `manageTags` is a write tool
+ * even though it preserves existing tags — it still changes resource tags.
+ * Every registry entry is classified explicitly; see SHOPIFY_MCP_FORK_PLAN.md §3.
+ */
+export type ToolMode = "read" | "write";
+
+export type ToolCategory =
+  | "products"
+  | "orders"
+  | "customers"
+  | "metafields"
+  | "inventory"
+  | "reports"
+  | "system";
+
+export interface ToolRegistryEntry {
+  tool: ShopifyTool;
+  mode: ToolMode;
+  category: ToolCategory;
+}
+
 // ── Utility functions ─────────────────────────────────────────────────
 
 /**
