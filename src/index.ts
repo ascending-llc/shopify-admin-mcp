@@ -48,11 +48,20 @@ console.error(
 
 if (transportMode === "http") {
   const PORT = Number(argv.port ?? process.env.PORT ?? 8080);
+  // Optional: advertise the per-shop Shopify authorize host in RFC 9728 metadata
+  // for direct clients. Either set it explicitly, or derive it from a configured
+  // single shop domain. Under the gateway the bearer is forwarded, so this is
+  // only consulted on an unauthenticated direct hit.
+  const shopDomain = argv.domain || process.env.SHOPIFY_SHOP_DOMAIN;
+  const oauthAuthorizationServer =
+    process.env.SHOPIFY_OAUTH_AUTHORIZATION_SERVER ||
+    (shopDomain ? `https://${shopDomain}/admin/oauth/authorize` : undefined);
   await startHttpServer({
     activeEntries,
     permissionMode,
     apiVersion: API_VERSION,
     port: PORT,
+    oauthAuthorizationServer,
   });
 } else {
   await startStdio();

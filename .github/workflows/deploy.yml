@@ -1,21 +1,21 @@
-# Deploy to EKS (D23). Build once (docker-build-push.yml), then deploy the SAME
-# image as read OR full — the variant is chosen by the `mode` flag, which sets
-# SHOPIFY_MCP_MODE on the single `shopify-mcp` deployment. You deploy one or the
-# other per environment, not both.
-#
-# Cluster name / namespace / deployment name are placeholders — confirm with
-# infra (SHOPIFY_MCP_FORK_PLAN.md §5 "Deploy artifacts" infra-config note).
-name: Deploy
+# Deployment Pipeline (D23) — mirrors the Salesforce DX MCP server's
+# image_deploy.yml (build_and_test gate → deploy-backend on EKS, env-sync,
+# set image, rollout) with two Shopify-specific additions:
+#   1. SHOPIFY_MCP_MODE flag — deploy the SAME image as read OR full (D21).
+#   2. register-with-registry — link the server into the Jarvis MCP list
+#      (POST /api/servers/register) so the gateway exposes it. SFDC does this
+#      out of band; we wire it here, gated by the `register` input.
+name: Deployment Pipeline
 on:
   workflow_dispatch:
     inputs:
       region:
-        description: "AWS Region"
+        description: "AWS Region to deploy to"
         type: string
         required: true
         default: us-east-1
       application:
-        description: "Target application / namespace"
+        description: "Application to deploy to"
         type: choice
         required: true
         default: jarvis-demo
@@ -23,59 +23,147 @@ on:
           - jarvis
           - jarvis-demo
       mode:
-        description: "Permission mode to deploy"
+        description: "Permission mode to deploy (read or full)"
         type: choice
         required: true
         default: read
         options:
           - read
           - full
-      tag:
-        description: "Image tag to deploy (default: latest)"
-        type: string
-        required: false
-        default: latest
+      register:
+        description: "Also (re)register the server in the Jarvis MCP list"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   id-token: write
   contents: read
 
 env:
-  ECR_REPOSITORY: jarvis/shopify_mcp_server
   EKS_CLUSTER_NAME: ascending-s-api-cluster
+  ECR_ACCOUNT_ID: "897729109735"
   DEPLOYMENT_NAME: shopify-mcp
 
 jobs:
-  deploy:
+  build_and_test:
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install, build, test
+        run: |
+          npm install
+          npm run build
+          npm test
+
+      - name: Assume IAM role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.SAAS_AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deployment-role-session
+          aws-region: ${{ inputs.region }}
+
+      - name: Test AWS Connection
+        run: aws sts get-caller-identity
+
+  deploy-backend:
+    name: Deploy Backend to EKS
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
+        with:
+          version: latest
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Assume IAM role
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: shopify-mcp-deploy
+          role-to-assume: ${{ secrets.SAAS_AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deployment-role-session
           aws-region: ${{ inputs.region }}
 
-      - name: Login to Amazon ECR
-        id: ecr
+      - name: AWS ECR HELM Connection
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ env.ECR_ACCOUNT_ID }}
 
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "${{ inputs.region }}"
 
-      - name: Deploy image + mode flag
+      - name: Sync env variables
+        run: |
+          echo "Updating env vars in EKS pods..."
+          kubectl annotate es jarvis-env force-sync=$(date +%s) --overwrite -n ${{ inputs.application }}
+
+      - name: Update Shopify MCP image + mode flag
         env:
-          IMAGE: ${{ steps.ecr.outputs.registry }}/jarvis/shopify_mcp_server:${{ inputs.tag }}
+          IMAGE: ${{ steps.login-ecr.outputs.registry }}/jarvis/shopify_mcp_server:latest
           NS: ${{ inputs.application }}
           MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
           kubectl set image "deploy/${DEPLOYMENT_NAME}" "${DEPLOYMENT_NAME}=${IMAGE}" -n "$NS"
           kubectl set env "deploy/${DEPLOYMENT_NAME}" "SHOPIFY_MCP_MODE=${MODE}" -n "$NS"
-          kubectl rollout restart "deploy/${DEPLOYMENT_NAME}" -n "$NS"
-          kubectl rollout status "deploy/${DEPLOYMENT_NAME}" -n "$NS" --timeout=180s
+
+      - name: Restart pods
+        run: kubectl rollout restart "deploy/${DEPLOYMENT_NAME}" -n ${{ inputs.application }}
+
+      - name: Check pod status
+        run: kubectl rollout status "deploy/${DEPLOYMENT_NAME}" -n ${{ inputs.application }} --timeout=180s
+
+  register-with-registry:
+    name: Register in Jarvis MCP list
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    if: ${{ inputs.register }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Resolve registry base URL
+        id: reg
+        run: |
+          if [ "${{ inputs.application }}" = "jarvis" ]; then
+            echo "base_url=https://jarvis.ascendingdc.com" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_url=https://jarvis-demo.ascendingdc.com" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Inject Shopify app credentials into config
+        env:
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          # Substitute the two secret placeholders (avoids committing app creds).
+          jq --arg cid "$SHOPIFY_CLIENT_ID" --arg sec "$SHOPIFY_CLIENT_SECRET" \
+            '.config.oauth.client_id = $cid | .config.oauth.client_secret = $sec' \
+            registry/shopify-server-config.json > /tmp/shopify-server-config.json
+
+      - name: Register / upsert in MCP list
+        env:
+          BASE_URL: ${{ steps.reg.outputs.base_url }}
+          GATEWAY_TOKEN: ${{ secrets.JARVIS_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          # POST /api/servers/register — idempotent upsert by `path` (D20 single shop).
+          # The registry forwards the per-user Shopify token (Authorization) and the
+          # static config.headers X-Shopify-Shop-Domain to our container per request.
+          curl -fsS -X POST "${BASE_URL}/api/servers/register" \
+            -H "Authorization: Bearer ${GATEWAY_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/shopify-server-config.json
+          echo "Registered Shopify Admin MCP at ${BASE_URL} (path /shopify)."

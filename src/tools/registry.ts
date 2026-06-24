@@ -60,6 +60,12 @@ import { getInventoryItems } from "./getInventoryItems.js";
 import { getPriceLists } from "./getPriceLists.js";
 import { getProductVariantsDetailed } from "./getProductVariantsDetailed.js";
 
+// Custom analytics report tools (Workstream B)
+import { reportReturnsBySku } from "./reportReturnsBySku.js";
+import { reportDiscountPerformance } from "./reportDiscountPerformance.js";
+import { reportRegionalSales } from "./reportRegionalSales.js";
+import { reportCustomerLifecycle } from "./reportCustomerLifecycle.js";
+
 /**
  * The single source of truth for what this server exposes. Every tool is
  * classified explicitly with a read/write `mode` and a `category`:
@@ -125,6 +131,11 @@ export const toolRegistry: ToolRegistryEntry[] = [
   { tool: getInventoryItems, mode: "read", category: "inventory" },
   { tool: getPriceLists, mode: "read", category: "products" },
   { tool: getProductVariantsDetailed, mode: "read", category: "products" },
+  // Custom analytics reports (Workstream B)
+  { tool: reportReturnsBySku, mode: "read", category: "reports" },
+  { tool: reportDiscountPerformance, mode: "read", category: "reports" },
+  { tool: reportRegionalSales, mode: "read", category: "reports" },
+  { tool: reportCustomerLifecycle, mode: "read", category: "reports" },
 ];
 
 /**

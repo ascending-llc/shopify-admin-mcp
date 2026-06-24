@@ -20,6 +20,61 @@ export interface HttpServerOptions {
   port: number;
   /** Defaults to PassthroughResolver (D15 path a). */
   resolver?: CredentialResolver;
+  /**
+   * Issuer advertised in RFC 9728 protected-resource metadata so spec-compliant
+   * direct clients (VS Code, Claude Desktop) can discover where to authenticate.
+   * Shopify's authorize host is per-shop, e.g.
+   * `https://<shop>.myshopify.com/admin/oauth/authorize`. Optional — under the
+   * Jarvis gateway the bearer is forwarded and discovery is short-circuited, so
+   * this is only consulted when a client hits the server directly with no token.
+   */
+  oauthAuthorizationServer?: string;
+  /** Scopes surfaced in the discovery document (informational). */
+  scopesSupported?: string[];
+}
+
+/**
+ * Builds the RFC 9728 protected-resource discovery handler. Ported from the SFDC
+ * server: tells a direct client this server requires OAuth and where to
+ * authenticate. If the caller already presents a Bearer token (the gateway path,
+ * and clients with a static token), it returns 404 so they use the token instead
+ * of starting a fresh OAuth flow.
+ */
+export function createOAuthDiscoveryHandler(
+  options: Pick<
+    HttpServerOptions,
+    "port" | "oauthAuthorizationServer" | "scopesSupported"
+  >,
+): (req: express.Request, res: express.Response) => void {
+  return (req, res) => {
+    const authHeader = req.headers["authorization"];
+    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      res.status(404).json({
+        error: "not_found",
+        error_description:
+          "OAuth discovery not needed — Bearer token already provided",
+      });
+      return;
+    }
+
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const proto =
+      (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+        ?.split(",")[0]
+        .trim() ?? req.protocol;
+    const host = req.get("host") ?? `localhost:${options.port}`;
+
+    res.json({
+      resource: `${proto}://${host}`,
+      ...(options.oauthAuthorizationServer
+        ? { authorization_servers: [options.oauthAuthorizationServer] }
+        : {}),
+      scopes_supported: options.scopesSupported ?? [],
+      bearer_methods_supported: ["header"],
+      resource_documentation:
+        "https://github.com/ascending-llc/shopify-admin-mcp",
+    });
+  };
 }
 
 export async function createApp(
@@ -43,6 +98,12 @@ export async function createApp(
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ status: "ok", mode: permissionMode });
   });
+
+  // OAuth Protected Resource Metadata (RFC 9728). Registered at the root and
+  // under /mcp to cover both direct connections and gateway path-prefixing.
+  const oauthDiscoveryHandler = createOAuthDiscoveryHandler(options);
+  app.get("/.well-known/oauth-protected-resource", oauthDiscoveryHandler);
+  app.get("/mcp/.well-known/oauth-protected-resource", oauthDiscoveryHandler);
 
   // Streamable HTTP endpoint. POST carries JSON-RPC; GET opens the SSE stream;
   // DELETE terminates a session. The transport decides per method (in stateless
