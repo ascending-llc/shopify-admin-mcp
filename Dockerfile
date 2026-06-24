@@ -22,7 +22,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     SHOPIFY_MCP_TRANSPORT=http \
     SHOPIFY_MCP_MODE=read \
-    PORT=3334
+    SHOPIFY_MCP_PORT=3334
 
 # Non-root runtime user.
 RUN groupadd -r app && useradd -r -g app -d /app app
@@ -38,7 +38,7 @@ EXPOSE 3334
 
 # Liveness parity for `docker run`; orchestrators should probe GET /healthz.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3334)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://localhost:'+(process.env.SHOPIFY_MCP_PORT||3334)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Credentials are NOT baked in. Under Jarvis the bearer + shop arrive per request
 # (D12/D15); mode/port are env-driven so one image serves both read and full.

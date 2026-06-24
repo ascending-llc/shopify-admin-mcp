@@ -47,7 +47,12 @@ console.error(
 );
 
 if (transportMode === "http") {
-  const PORT = Number(argv.port ?? process.env.PORT ?? 3334);
+  // Bind a server-owned port var, NOT the generic PORT. Under Jarvis the shared
+  // `jarvis-env` secret injects PORT (e.g. 3080 for LibreChat) into every MCP pod
+  // via envFrom, which would otherwise override the image default and hijack our
+  // listener. Reading SHOPIFY_MCP_PORT (or --port) keeps us on our own port
+  // regardless of that shared default. Default 3334.
+  const PORT = Number(argv.port ?? process.env.SHOPIFY_MCP_PORT ?? 3334);
   // Optional: advertise the per-shop Shopify authorize host in RFC 9728 metadata
   // for direct clients. Either set it explicitly, or derive it from a configured
   // single shop domain. Under the gateway the bearer is forwarded, so this is
