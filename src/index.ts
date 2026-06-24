@@ -47,7 +47,7 @@ console.error(
 );
 
 if (transportMode === "http") {
-  const PORT = Number(argv.port ?? process.env.PORT ?? 8080);
+  const PORT = Number(argv.port ?? process.env.PORT ?? 3334);
   // Optional: advertise the per-shop Shopify authorize host in RFC 9728 metadata
   // for direct clients. Either set it explicitly, or derive it from a configured
   // single shop domain. Under the gateway the bearer is forwarded, so this is

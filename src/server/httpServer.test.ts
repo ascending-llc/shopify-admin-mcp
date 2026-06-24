@@ -36,7 +36,7 @@ function mockRes(): Response & {
 describe("createOAuthDiscoveryHandler (RFC 9728)", () => {
   it("returns protected-resource metadata when no bearer is present", () => {
     const handler = createOAuthDiscoveryHandler({
-      port: 8080,
+      port: 3334,
       oauthAuthorizationServer:
         "https://ascending-test.myshopify.com/admin/oauth/authorize",
       scopesSupported: ["read_orders", "read_products"],
@@ -56,7 +56,7 @@ describe("createOAuthDiscoveryHandler (RFC 9728)", () => {
   });
 
   it("returns 404 to short-circuit discovery when a bearer is already present", () => {
-    const handler = createOAuthDiscoveryHandler({ port: 8080 });
+    const handler = createOAuthDiscoveryHandler({ port: 3334 });
     const res = mockRes();
     handler(
       mockReq({ headers: { authorization: "Bearer shpat_abc" } }),
@@ -68,7 +68,7 @@ describe("createOAuthDiscoveryHandler (RFC 9728)", () => {
   });
 
   it("omits authorization_servers when none is configured", () => {
-    const handler = createOAuthDiscoveryHandler({ port: 8080 });
+    const handler = createOAuthDiscoveryHandler({ port: 3334 });
     const res = mockRes();
     handler(mockReq(), res);
 
@@ -77,7 +77,7 @@ describe("createOAuthDiscoveryHandler (RFC 9728)", () => {
   });
 
   it("honors X-Forwarded-Proto from the gateway", () => {
-    const handler = createOAuthDiscoveryHandler({ port: 8080 });
+    const handler = createOAuthDiscoveryHandler({ port: 3334 });
     const res = mockRes();
     handler(
       mockReq({

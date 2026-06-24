@@ -2,7 +2,7 @@
   "server_name": "Shopify Admin MCP",
   "description": "Shopify GraphQL Admin API — read tools for the ascending-test storefront",
   "path": "/shopify",
-  "proxy_pass_url": "http://shopify-mcp:8080/mcp",
+  "proxy_pass_url": "http://shopify-mcp:3334/mcp",
   "supported_transports": ["streamable-http"],
   "config": {
     "requiresOAuth": true,

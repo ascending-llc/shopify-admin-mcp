@@ -15,11 +15,11 @@ services:
       - SHOPIFY_MCP_TRANSPORT=http
       - SHOPIFY_MCP_MODE=${SHOPIFY_MCP_MODE:-read}
       - SHOPIFY_API_VERSION=2026-01
-      - PORT=8080
+      - PORT=3334
     ports:
-      - "8080:8080"
+      - "3334:3334"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3334/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 3

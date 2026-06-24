@@ -3,7 +3,7 @@
 # SHOPIFY_MCP_MODE flag. Mirrors the Salesforce DX MCP server's ci-asc.yml
 # (same AWS account, QEMU+buildx, ensure-repo, latest+sha+release tags).
 # Repo: jarvis/shopify_mcp_server.
-name: Build and Push Shopify MCP to ECR Registry
+name: Build & Push Image
 
 on:
   workflow_dispatch:
@@ -17,8 +17,6 @@ on:
         type: string
         required: true
         default: us-east-1
-  push:
-    branches: [main]
 
 permissions:
   id-token: write
@@ -34,6 +32,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Gate the image on build + tests (folds in the old standalone ci.yml).
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install, build, test
+        run: |
+          npm ci
+          npm run build
+          npm test
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

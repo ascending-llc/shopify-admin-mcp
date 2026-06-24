@@ -1,4 +1,4 @@
-name: GraphQL Validate
+name: Validate GraphQL
 
 on:
   pull_request:

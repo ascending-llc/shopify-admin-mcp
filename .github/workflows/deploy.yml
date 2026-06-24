@@ -1,11 +1,14 @@
-# Deployment Pipeline (D23) — mirrors the Salesforce DX MCP server's
-# image_deploy.yml (build_and_test gate → deploy-backend on EKS, env-sync,
-# set image, rollout) with two Shopify-specific additions:
-#   1. SHOPIFY_MCP_MODE flag — deploy the SAME image as read OR full (D21).
-#   2. register-with-registry — link the server into the Jarvis MCP list
-#      (POST /api/servers/register) so the gateway exposes it. SFDC does this
-#      out of band; we wire it here, gated by the `register` input.
-name: Deployment Pipeline
+# Deployment Pipeline — "if it's already deployed, update it."
+#
+# The pod's lifecycle is NOT owned here: the shopify-mcp Deployment+Service are
+# created out-of-band by jarvis-deployment (a `mcpConfigs` entry, rendered by the
+# jarvis Helm chart). This workflow only:
+#   1. rolls the latest ECR image onto an EXISTING shopify-mcp Deployment and sets
+#      the SHOPIFY_MCP_MODE flag (read|full) — it no-ops gracefully if the
+#      Deployment isn't there yet, instead of erroring.
+#   2. optionally (re)registers the server in the Jarvis MCP list.
+# Image build/push is a separate manual workflow (docker-build-push.yml).
+name: Deploy
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +18,7 @@ on:
         required: true
         default: us-east-1
       application:
-        description: "Application to deploy to"
+        description: "Application (namespace) to deploy to"
         type: choice
         required: true
         default: jarvis-demo
@@ -46,42 +49,10 @@ env:
   DEPLOYMENT_NAME: shopify-mcp
 
 jobs:
-  build_and_test:
-    name: Build and Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install, build, test
-        run: |
-          npm install
-          npm run build
-          npm test
-
-      - name: Assume IAM role
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.SAAS_AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: deployment-role-session
-          aws-region: ${{ inputs.region }}
-
-      - name: Test AWS Connection
-        run: aws sts get-caller-identity
-
   deploy-backend:
-    name: Deploy Backend to EKS
+    name: Update Deployment on EKS (if present)
     runs-on: ubuntu-latest
-    needs: build_and_test
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
@@ -94,35 +65,25 @@ jobs:
           role-session-name: deployment-role-session
           aws-region: ${{ inputs.region }}
 
-      - name: AWS ECR HELM Connection
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registries: ${{ env.ECR_ACCOUNT_ID }}
-
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "${{ inputs.region }}"
 
-      - name: Sync env variables
-        run: |
-          echo "Updating env vars in EKS pods..."
-          kubectl annotate es jarvis-env force-sync=$(date +%s) --overwrite -n ${{ inputs.application }}
-
-      - name: Update Shopify MCP image + mode flag
+      - name: Update image + mode (only if the Deployment already exists)
         env:
-          IMAGE: ${{ steps.login-ecr.outputs.registry }}/jarvis/shopify_mcp_server:latest
+          IMAGE: ${{ env.ECR_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com/jarvis/shopify_mcp_server:latest
           NS: ${{ inputs.application }}
           MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
+          if ! kubectl get "deploy/${DEPLOYMENT_NAME}" -n "$NS" >/dev/null 2>&1; then
+            echo "::warning::Deployment ${DEPLOYMENT_NAME} not found in ${NS}."
+            echo "Create it first via jarvis-deployment (mcpConfigs + terraform apply). Skipping update."
+            exit 0
+          fi
           kubectl set image "deploy/${DEPLOYMENT_NAME}" "${DEPLOYMENT_NAME}=${IMAGE}" -n "$NS"
           kubectl set env "deploy/${DEPLOYMENT_NAME}" "SHOPIFY_MCP_MODE=${MODE}" -n "$NS"
-
-      - name: Restart pods
-        run: kubectl rollout restart "deploy/${DEPLOYMENT_NAME}" -n ${{ inputs.application }}
-
-      - name: Check pod status
-        run: kubectl rollout status "deploy/${DEPLOYMENT_NAME}" -n ${{ inputs.application }} --timeout=180s
+          kubectl rollout restart "deploy/${DEPLOYMENT_NAME}" -n "$NS"
+          kubectl rollout status "deploy/${DEPLOYMENT_NAME}" -n "$NS" --timeout=180s
 
   register-with-registry:
     name: Register in Jarvis MCP list
