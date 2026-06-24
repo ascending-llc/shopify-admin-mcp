@@ -1,0 +1,32 @@
+# One image; the permission variant is chosen by the SHOPIFY_MCP_MODE flag at
+# run/deploy time (D21/D23) — you run read OR full, not both. Default is read:
+#   docker compose up                      # read
+#   SHOPIFY_MCP_MODE=full docker compose up # full
+# Under Jarvis the container holds no Shopify credential — the bearer + shop
+# arrive per request — so none are set here.
+services:
+  shopify-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shopify-mcp:local
+    container_name: shopify-mcp
+    environment:
+      - SHOPIFY_MCP_TRANSPORT=http
+      - SHOPIFY_MCP_MODE=${SHOPIFY_MCP_MODE:-read}
+      - SHOPIFY_API_VERSION=2026-01
+      - PORT=8080
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

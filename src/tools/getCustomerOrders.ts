@@ -6,7 +6,12 @@ import { formatOrderSummary } from "../lib/formatters.js";
 
 // Input schema for getting customer orders
 const GetCustomerOrdersInputSchema = z.object({
-  customerId: z.string().regex(/^\d+$/, "Customer ID must be numeric"),
+  customerId: z
+    .string()
+    .min(1)
+    .describe(
+      "The customer ID — a Shopify GID (gid://shopify/Customer/123) or just the numeric ID (123).",
+    ),
   limit: z.number().default(10),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
@@ -36,6 +41,12 @@ const getCustomerOrders = {
   execute: async (input: GetCustomerOrdersInput) => {
     try {
       const { customerId, limit, after, before, sortKey, reverse } = input;
+      // Accept a GID or a bare numeric ID; the search query needs the numeric
+      // part. Strip a `gid://shopify/Customer/<n>` down to `<n>` so callers can
+      // pass the same GID every other tool returns (consistency).
+      const numericCustomerId = customerId.startsWith("gid://")
+        ? customerId.split("/").pop() ?? customerId
+        : customerId;
 
       // Query to get orders for a specific customer
       const query = gql`
@@ -118,7 +129,7 @@ const getCustomerOrders = {
 
       // We use the query parameter to filter orders by customer ID
       const variables = {
-        query: `customer_id:${customerId}`,
+        query: `customer_id:${numericCustomerId}`,
         first: limit,
         ...(after && { after }),
         ...(before && { before }),

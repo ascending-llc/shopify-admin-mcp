@@ -1,4 +1,4 @@
-import type { ShopifyTool } from "../lib/toolUtils.js";
+import type { ShopifyTool, ToolRegistryEntry } from "../lib/toolUtils.js";
 
 // Product tools
 import { getProducts } from "./getProducts.js";
@@ -60,57 +60,86 @@ import { getInventoryItems } from "./getInventoryItems.js";
 import { getPriceLists } from "./getPriceLists.js";
 import { getProductVariantsDetailed } from "./getProductVariantsDetailed.js";
 
-export const tools: ShopifyTool[] = [
+// Custom analytics report tools (Workstream B)
+import { reportReturnsBySku } from "./reportReturnsBySku.js";
+import { reportDiscountPerformance } from "./reportDiscountPerformance.js";
+import { reportRegionalSales } from "./reportRegionalSales.js";
+import { reportCustomerLifecycle } from "./reportCustomerLifecycle.js";
+
+/**
+ * The single source of truth for what this server exposes. Every tool is
+ * classified explicitly with a read/write `mode` and a `category`:
+ * - `mode` drives deploy-time permission filtering (SHOPIFY_MCP_MODE, D2/D3).
+ *   Tests enforce that the classification is complete and that no write tool
+ *   is registered in read mode.
+ * - `category` is for grouping/discovery only.
+ *
+ * Adding a tool = import it above and add a classified entry here. A tool file
+ * that exists but is missing here will fail the registry completeness test.
+ */
+export const toolRegistry: ToolRegistryEntry[] = [
   // Products (8)
-  getProducts,
-  getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  manageProductVariants,
-  deleteProductVariants,
-  manageProductOptions,
+  { tool: getProducts, mode: "read", category: "products" },
+  { tool: getProductById, mode: "read", category: "products" },
+  { tool: createProduct, mode: "write", category: "products" },
+  { tool: updateProduct, mode: "write", category: "products" },
+  { tool: deleteProduct, mode: "write", category: "products" },
+  { tool: manageProductVariants, mode: "write", category: "products" },
+  { tool: deleteProductVariants, mode: "write", category: "products" },
+  { tool: manageProductOptions, mode: "write", category: "products" },
   // Orders (10)
-  getOrders,
-  getOrderById,
-  updateOrder,
-  createDraftOrder,
-  completeDraftOrder,
-  orderCancel,
-  orderCloseOpen,
-  orderMarkAsPaid,
-  createFulfillment,
-  createRefund,
+  { tool: getOrders, mode: "read", category: "orders" },
+  { tool: getOrderById, mode: "read", category: "orders" },
+  { tool: updateOrder, mode: "write", category: "orders" },
+  { tool: createDraftOrder, mode: "write", category: "orders" },
+  { tool: completeDraftOrder, mode: "write", category: "orders" },
+  { tool: orderCancel, mode: "write", category: "orders" },
+  { tool: orderCloseOpen, mode: "write", category: "orders" },
+  { tool: orderMarkAsPaid, mode: "write", category: "orders" },
+  { tool: createFulfillment, mode: "write", category: "orders" },
+  { tool: createRefund, mode: "write", category: "orders" },
   // Customers (8)
-  getCustomers,
-  getCustomerById,
-  getCustomerOrders,
-  createCustomer,
-  updateCustomer,
-  deleteCustomer,
-  mergeCustomers,
-  manageCustomerAddress,
+  { tool: getCustomers, mode: "read", category: "customers" },
+  { tool: getCustomerById, mode: "read", category: "customers" },
+  { tool: getCustomerOrders, mode: "read", category: "customers" },
+  { tool: createCustomer, mode: "write", category: "customers" },
+  { tool: updateCustomer, mode: "write", category: "customers" },
+  { tool: deleteCustomer, mode: "write", category: "customers" },
+  { tool: mergeCustomers, mode: "write", category: "customers" },
+  { tool: manageCustomerAddress, mode: "write", category: "customers" },
   // Metafields (3)
-  getMetafields,
-  setMetafields,
-  deleteMetafields,
-  // Convenience (2)
-  manageTags,
-  setInventoryQuantities,
+  { tool: getMetafields, mode: "read", category: "metafields" },
+  { tool: setMetafields, mode: "write", category: "metafields" },
+  { tool: deleteMetafields, mode: "write", category: "metafields" },
+  // Convenience / cross-resource (2)
+  // manageTags mutates resource tags → write, even though it preserves existing tags (D4).
+  { tool: manageTags, mode: "write", category: "system" },
+  { tool: setInventoryQuantities, mode: "write", category: "inventory" },
   // Configuration & discovery (5)
-  getShopInfo,
-  getMetafieldDefinitions,
-  getLocations,
-  getMarkets,
-  getCollections,
+  { tool: getShopInfo, mode: "read", category: "system" },
+  { tool: getMetafieldDefinitions, mode: "read", category: "metafields" },
+  { tool: getLocations, mode: "read", category: "inventory" },
+  { tool: getMarkets, mode: "read", category: "system" },
+  { tool: getCollections, mode: "read", category: "products" },
   // Enhanced order & fulfillment (4)
-  getOrderTransactions,
-  getFulfillmentOrders,
-  getOrderRefundDetails,
-  getCollectionById,
+  { tool: getOrderTransactions, mode: "read", category: "orders" },
+  { tool: getFulfillmentOrders, mode: "read", category: "orders" },
+  { tool: getOrderRefundDetails, mode: "read", category: "orders" },
+  { tool: getCollectionById, mode: "read", category: "products" },
   // Inventory & pricing reads (4)
-  getInventoryLevels,
-  getInventoryItems,
-  getPriceLists,
-  getProductVariantsDetailed,
+  { tool: getInventoryLevels, mode: "read", category: "inventory" },
+  { tool: getInventoryItems, mode: "read", category: "inventory" },
+  { tool: getPriceLists, mode: "read", category: "products" },
+  { tool: getProductVariantsDetailed, mode: "read", category: "products" },
+  // Custom analytics reports (Workstream B)
+  { tool: reportReturnsBySku, mode: "read", category: "reports" },
+  { tool: reportDiscountPerformance, mode: "read", category: "reports" },
+  { tool: reportRegionalSales, mode: "read", category: "reports" },
+  { tool: reportCustomerLifecycle, mode: "read", category: "reports" },
 ];
+
+/**
+ * Flat list of all tools, derived from the registry. Retained for back-compat;
+ * prefer `toolRegistry` (with mode/category) for new code.
+ */
+export const tools: ShopifyTool[] = toolRegistry.map((entry) => entry.tool);
