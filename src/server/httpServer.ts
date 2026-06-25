@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 
 import {
   PassthroughResolver,
@@ -80,15 +80,6 @@ export async function createApp(
   const { activeEntries, permissionMode, apiVersion } = options;
   const resolver = options.resolver ?? new PassthroughResolver();
 
-  // One stateless MCP server/transport, reused across requests. No user data
-  // lives on them; per-request identity/routing is isolated via AsyncLocalStorage.
-  const mcpServer = createMcpServer(activeEntries, permissionMode, "http");
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
-  });
-  await mcpServer.connect(transport);
-
   const app = express();
   app.use(accessLogger);
   app.use(express.json());
@@ -107,29 +98,58 @@ export async function createApp(
   // DELETE terminates a session. The transport decides per method (in stateless
   // mode GET/DELETE without a session yield 405). All routed through one handler
   // so identity/routing are seeded per request via AsyncLocalStorage.
-  const mcpHandler = async (
-    req: Parameters<typeof transport.handleRequest>[0],
-    res: Parameters<typeof transport.handleRequest>[1],
-  ): Promise<void> => {
-    const identity = resolver.resolve(req.headers);
-    await runWithContext(
-      {
-        transportMode: "http",
-        apiVersion,
-        bearer: identity?.bearer,
-        userId: identity?.userId,
-        username: identity?.username,
-        scopes: identity?.scopes,
-        shopDomainHeader: identity?.shopDomainHeader,
-      },
-      // POST passes the parsed body; GET/DELETE have none.
-      () =>
-        transport.handleRequest(
-          req,
-          res,
-          req.method === "POST" ? (req as { body?: unknown }).body : undefined,
-        ),
-    );
+  const mcpHandler = async (req: Request, res: Response): Promise<void> => {
+    // Stateless: a fresh McpServer + transport per request (the MCP SDK stateless
+    // pattern). With sessionIdGenerator undefined the transport tracks one request
+    // lifecycle, so a reused instance 500s after the first call. No user data lives
+    // on them; per-request identity/routing is isolated via AsyncLocalStorage.
+    const server = createMcpServer(activeEntries, permissionMode, "http");
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+    res.on("close", () => {
+      void transport.close();
+      void server.close();
+    });
+    try {
+      const identity = resolver.resolve(req.headers);
+      await server.connect(transport);
+      await runWithContext(
+        {
+          transportMode: "http",
+          apiVersion,
+          bearer: identity?.bearer,
+          userId: identity?.userId,
+          username: identity?.username,
+          scopes: identity?.scopes,
+          shopDomainHeader: identity?.shopDomainHeader,
+        },
+        // POST passes the parsed body; GET/DELETE have none.
+        () =>
+          transport.handleRequest(
+            req,
+            res,
+            req.method === "POST" ? (req as { body?: unknown }).body : undefined,
+          ),
+      );
+    } catch (err) {
+      log("ERROR", `/mcp handler error: ${err instanceof Error ? err.stack : String(err)}`);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: {
+              code: -32603,
+              message: err instanceof Error ? err.message : String(err),
+            },
+          }),
+        );
+      }
+    }
   };
 
   app.post("/mcp", shopifyAuthMiddleware, mcpHandler);
