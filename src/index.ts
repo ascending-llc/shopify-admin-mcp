@@ -11,6 +11,7 @@ import {
   parsePermissionMode,
 } from "./lib/permissionMode.js";
 import { setDefaultClient, shopifyClientProxy } from "./lib/shopifyClientProxy.js";
+import { logServerInfo } from "./lib/logger.js";
 import { toolRegistry } from "./tools/registry.js";
 import { createMcpServer } from "./server/mcpServer.js";
 import { startHttpServer } from "./server/httpServer.js";
@@ -38,13 +39,6 @@ const activeEntries = filterRegistryByMode(toolRegistry, permissionMode);
 for (const { tool } of activeEntries) {
   tool.initialize(shopifyClientProxy);
 }
-
-const writeCount = activeEntries.filter((e) => e.mode === "write").length;
-console.error(
-  `[shopify-mcp] transport: ${transportMode}, permission mode: ${permissionMode} — ` +
-    `${activeEntries.length}/${toolRegistry.length} tools active ` +
-    `(${activeEntries.length - writeCount} read, ${writeCount} write)`,
-);
 
 if (transportMode === "http") {
   // Fixed port
@@ -124,6 +118,7 @@ async function startStdio(): Promise<void> {
   // The proxy falls back to this client when there is no per-request context.
   setDefaultClient(startupClient);
 
+  logServerInfo("stdio", permissionMode, activeEntries);
   const server = createMcpServer(activeEntries, permissionMode, "stdio");
   const transport = new StdioServerTransport();
   await server.connect(transport);

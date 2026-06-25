@@ -10,6 +10,7 @@ import {
 import type { PermissionMode } from "../lib/permissionMode.js";
 import { runWithContext } from "../lib/requestContext.js";
 import { shopifyAuthMiddleware } from "../lib/authMiddleware.js";
+import { accessLogger, log, logServerInfo } from "../lib/logger.js";
 import type { ToolRegistryEntry } from "../lib/toolUtils.js";
 import { createMcpServer } from "./mcpServer.js";
 
@@ -89,6 +90,7 @@ export async function createApp(
   await mcpServer.connect(transport);
 
   const app = express();
+  app.use(accessLogger);
   app.use(express.json());
 
   app.get("/healthz", (_req, res) => {
@@ -141,11 +143,15 @@ export async function startHttpServer(
   options: HttpServerOptions,
 ): Promise<Server> {
   const app = await createApp(options);
+  log("INFO", `Started server process [${process.pid}]`);
+  log("INFO", "Waiting for application startup.");
+  logServerInfo("http", options.permissionMode, options.activeEntries);
   return new Promise<Server>((resolve) => {
     const server = app.listen(options.port, () => {
-      console.error(
-        `[shopify-mcp] HTTP transport listening on :${options.port} ` +
-          `(POST /mcp, GET /healthz)`,
+      log("INFO", "Application startup complete.");
+      log(
+        "INFO",
+        `Uvicorn running on http://0.0.0.0:${options.port} (Press CTRL+C to quit)`,
       );
       resolve(server);
     });
