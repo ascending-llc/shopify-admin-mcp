@@ -34,11 +34,7 @@ export interface HttpServerOptions {
 }
 
 /**
- * Builds the RFC 9728 protected-resource discovery handler. Ported from the SFDC
- * server: tells a direct client this server requires OAuth and where to
- * authenticate. If the caller already presents a Bearer token (the gateway path,
- * and clients with a static token), it returns 404 so they use the token instead
- * of starting a fresh OAuth flow.
+ * Builds the RFC 9728 protected-resource discovery handler.
  */
 export function createOAuthDiscoveryHandler(
   options: Pick<
