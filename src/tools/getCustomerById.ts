@@ -5,7 +5,12 @@ import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
 
 // Input schema for getting a customer by ID
 const GetCustomerByIdInputSchema = z.object({
-  id: z.string().regex(/^\d+$/, "Customer ID must be numeric")
+  id: z
+    .string()
+    .min(1)
+    .describe(
+      "The customer ID — a Shopify GID (gid://shopify/Customer/123) or just the numeric ID (123).",
+    )
 });
 
 type GetCustomerByIdInput = z.infer<typeof GetCustomerByIdInputSchema>;
@@ -28,7 +33,9 @@ const getCustomerById = {
       const { id } = input;
 
       // Convert numeric ID to GID format
-      const customerGid = `gid://shopify/Customer/${id}`;
+      const customerGid = id.startsWith("gid://")
+        ? id
+        : `gid://shopify/Customer/${id}`;
 
       const query = gql`
         #graphql

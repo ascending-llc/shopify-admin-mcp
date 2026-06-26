@@ -5,7 +5,12 @@ import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for deleting a customer
 const DeleteCustomerInputSchema = z.object({
-  id: z.string().regex(/^\d+$/, "Customer ID must be numeric")
+  id: z
+    .string()
+    .min(1)
+    .describe(
+      "The customer ID — a Shopify GID (gid://shopify/Customer/123) or just the numeric ID (123).",
+    )
 });
 
 type DeleteCustomerInput = z.infer<typeof DeleteCustomerInputSchema>;
@@ -27,8 +32,10 @@ const deleteCustomer = {
     try {
       const { id } = input;
 
-      // Convert numeric ID to GID format
-      const customerGid = `gid://shopify/Customer/${id}`;
+      // Accept a GID or a bare numeric ID
+      const customerGid = id.startsWith("gid://")
+        ? id
+        : `gid://shopify/Customer/${id}`;
 
       const query = gql`
         #graphql
