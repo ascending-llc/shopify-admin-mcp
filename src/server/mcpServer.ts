@@ -62,7 +62,7 @@ export function createMcpServer(
           }
         : tool.schema.shape;
 
-    server.tool(tool.name, shape, async (args: Record<string, unknown>) => {
+    server.tool(tool.name, tool.description, shape, async (args: Record<string, unknown>) => {
       if (mode === "write" && permissionMode !== "full") {
         throw new Error(
           `Tool "${tool.name}" is a write tool and is disabled in read-only mode.`,
