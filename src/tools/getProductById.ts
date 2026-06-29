@@ -5,7 +5,10 @@ import { handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for getProductById
 const GetProductByIdInputSchema = z.object({
-  productId: z.string().min(1)
+  productId: z
+    .string()
+    .min(1)
+    .describe("The product ID (e.g. gid://shopify/Product/123 or just 123)")
 });
 
 type GetProductByIdInput = z.infer<typeof GetProductByIdInputSchema>;
@@ -25,7 +28,11 @@ const getProductById = {
 
   execute: async (input: GetProductByIdInput) => {
     try {
-      const { productId } = input;
+      // Accept either a full GID or a bare numeric ID (matches
+      // getProductVariantsDetailed / getInventoryItems).
+      const productId = input.productId.startsWith("gid://")
+        ? input.productId
+        : `gid://shopify/Product/${input.productId}`;
 
       const query = gql`
         #graphql

@@ -6,7 +6,9 @@ import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 // Input schema for manageProductOptions
 const ManageProductOptionsInputSchema = z.object({
   productId: z.string().min(1).describe("Shopify product GID"),
-  action: z.enum(["create", "update", "delete"]),
+  action: z
+    .enum(["create", "update", "delete"])
+    .describe("The operation to perform on the product's options."),
   variantStrategy: z
     .enum(["LEAVE_AS_IS", "CREATE"])
     .optional()

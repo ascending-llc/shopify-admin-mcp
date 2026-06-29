@@ -6,36 +6,45 @@ import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 
 // Input schema for creating a product
 const CreateProductInputSchema = z.object({
-  title: z.string().min(1),
-  descriptionHtml: z.string().optional(),
+  title: z.string().min(1).describe("Product title (required)."),
+  descriptionHtml: z
+    .string()
+    .optional()
+    .describe("Product description as HTML."),
   handle: z.string().optional().describe("URL slug, e.g. 'black-sunglasses'. Auto-generated from title if omitted."),
-  vendor: z.string().optional(),
-  productType: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).default("DRAFT"),
+  vendor: z.string().optional().describe("Product vendor / brand name."),
+  productType: z.string().optional().describe("Product type / category."),
+  tags: z.array(z.string()).optional().describe("Tags to apply to the product."),
+  status: z
+    .enum(["ACTIVE", "DRAFT", "ARCHIVED"])
+    .default("DRAFT")
+    .describe("Product status: ACTIVE, DRAFT, or ARCHIVED (default DRAFT)."),
   seo: z
     .object({
-      title: z.string().optional(),
-      description: z.string().optional(),
+      title: z.string().optional().describe("SEO page title."),
+      description: z.string().optional().describe("SEO meta description."),
     })
     .optional()
     .describe("SEO title and description for search engines"),
   metafields: z
     .array(
       z.object({
-        namespace: z.string(),
-        key: z.string(),
-        value: z.string(),
+        namespace: z.string().describe("Metafield namespace."),
+        key: z.string().describe("Metafield key."),
+        value: z.string().describe("Metafield value."),
         type: z.string().describe("Metafield type, e.g. 'single_line_text_field', 'json', 'number_integer'"),
       })
     )
-    .optional(),
+    .optional()
+    .describe("Metafields to attach to the product."),
   productOptions: z
     .array(
       z.object({
         name: z.string().describe("Option name, e.g. 'Size' or 'Color'"),
         values: z
-          .array(z.object({ name: z.string() }))
+          .array(
+            z.object({ name: z.string().describe("A single option value, e.g. 'Large'.") })
+          )
           .optional()
           .describe("Option values"),
       })

@@ -6,7 +6,13 @@ import { formatLineItems, formatOrderSummary } from "../lib/formatters.js";
 
 // Input schema for getOrderById
 const GetOrderByIdInputSchema = z.object({
-  orderId: z.string().min(1)
+  orderId: z
+    .string()
+    .min(1)
+    .describe(
+      "The order ID — a Shopify GID (gid://shopify/Order/123), an order name " +
+        "(#1001), or a bare numeric ID (123). All three are resolved automatically.",
+    )
 });
 
 type GetOrderByIdInput = z.infer<typeof GetOrderByIdInputSchema>;

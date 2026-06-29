@@ -6,8 +6,14 @@ import { formatOrderSummary } from "../lib/formatters.js";
 
 // Input schema for getOrders
 const GetOrdersInputSchema = z.object({
-  status: z.enum(["any", "open", "closed", "cancelled"]).default("any"),
-  limit: z.number().default(10),
+  status: z
+    .enum(["any", "open", "closed", "cancelled"])
+    .default("any")
+    .describe("Filter by order status (default 'any')"),
+  limit: z
+    .number()
+    .default(10)
+    .describe("Maximum number of orders to return (default 10)"),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
   sortKey: z.enum([

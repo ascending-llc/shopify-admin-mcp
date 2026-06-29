@@ -9,9 +9,10 @@ import type { ToolRegistryEntry } from "../lib/toolUtils.js";
 export type TransportMode = "http" | "stdio";
 
 const SHOP_DOMAIN_DESCRIPTION =
-  "Target Shopify store, e.g. your-store.myshopify.com. Optional when the " +
-  "gateway forwards the shop; required otherwise. Routing input only — never " +
-  "the auth boundary.";
+  "Routing input only — never the auth boundary. The target shop is normally " +
+  "supplied automatically by the gateway, so leave this unset and do not ask " +
+  "the user for it. Only provide it (e.g. your-store.myshopify.com) if a call " +
+  "fails with a missing-shop error.";
 
 /**
  * Resolve routing for an HTTP tool call and stash the per-request client on the

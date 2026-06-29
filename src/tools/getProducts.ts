@@ -6,7 +6,10 @@ import { handleToolError } from "../lib/toolUtils.js";
 // Input schema for getProducts
 const GetProductsInputSchema = z.object({
   searchTitle: z.string().optional().describe("Search by title (convenience filter, wraps in title:*...*). Use 'query' for advanced filtering."),
-  limit: z.number().default(10),
+  limit: z
+    .number()
+    .default(10)
+    .describe("Maximum number of products to return (default 10)"),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
   sortKey: z.enum([

@@ -9,6 +9,7 @@ import {
 } from "../lib/credentialResolver.js";
 import type { PermissionMode } from "../lib/permissionMode.js";
 import { runWithContext } from "../lib/requestContext.js";
+import { isValidShopDomain, normalizeShopDomain } from "../lib/shopRouting.js";
 import { shopifyAuthMiddleware } from "../lib/authMiddleware.js";
 import { accessLogger, log, logServerInfo } from "../lib/logger.js";
 import type { ToolRegistryEntry } from "../lib/toolUtils.js";
@@ -74,6 +75,76 @@ export function createOAuthDiscoveryHandler(
   };
 }
 
+/**
+ * Builds the token-exchange normalizing proxy (RFC 6749 §5.1 compatibility).
+ *
+ * Shopify's `/admin/oauth/access_token` returns a genuine token but omits the
+ * spec-REQUIRED `token_type` field, because admin tokens are presented via the
+ * proprietary `X-Shopify-Access-Token` header rather than as RFC 6750 Bearer
+ * credentials. Strict OAuth clients (e.g. the MCP SDK's `OAuthTokensSchema`)
+ * reject the response. Instead of patching each client, the client points its
+ * `token_url` at this route: we relay the exchange to Shopify verbatim and, on a
+ * 200 that carries an `access_token` but no `token_type`, inject `"Bearer"` (its
+ * only correct value). The request body — which carries the `client_secret` — is
+ * forwarded as opaque bytes and is never parsed or logged. Nothing is persisted;
+ * this stays a stateless relay. The upstream shop comes from a `?shop=` query
+ * param and is validated (SSRF guard) before interpolation.
+ *
+ * `fetchImpl` is injectable for tests; defaults to the global `fetch`.
+ */
+export function createTokenProxyHandler(
+  fetchImpl: typeof fetch = fetch,
+): (req: Request, res: Response) => Promise<void> {
+  return async (req, res) => {
+    const shop = normalizeShopDomain(String(req.query.shop ?? ""));
+    if (!isValidShopDomain(shop)) {
+      res.status(400).json({ error: "invalid_shop" });
+      return;
+    }
+    try {
+      const upstream = await fetchImpl(
+        `https://${shop}/admin/oauth/access_token`,
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              req.get("content-type") ?? "application/x-www-form-urlencoded",
+            accept: "application/json",
+            ...(req.get("authorization")
+              ? { authorization: req.get("authorization") as string }
+              : {}),
+          },
+          // Raw bytes, forwarded as-is. Never parsed (would expose client_secret).
+          // express.raw() yields a Buffer; cast for fetch's BodyInit typing.
+          body: req.body as unknown as BodyInit,
+        },
+      );
+
+      const text = await upstream.text();
+      let out = text;
+      if (upstream.ok) {
+        try {
+          const json = JSON.parse(text) as Record<string, unknown>;
+          if (json && json.access_token && json.token_type == null) {
+            out = JSON.stringify({ ...json, token_type: "Bearer" });
+          }
+        } catch {
+          /* non-JSON 200 — pass through untouched */
+        }
+      }
+      const contentType = upstream.headers.get("content-type");
+      if (contentType) res.setHeader("content-type", contentType);
+      res.status(upstream.status).send(out);
+    } catch (err) {
+      log(
+        "ERROR",
+        `/oauth/token proxy error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.status(502).json({ error: "token_proxy_error" });
+    }
+  };
+}
+
 export async function createApp(
   options: HttpServerOptions,
 ): Promise<Express> {
@@ -93,6 +164,16 @@ export async function createApp(
   const oauthDiscoveryHandler = createOAuthDiscoveryHandler(options);
   app.get("/.well-known/oauth-protected-resource", oauthDiscoveryHandler);
   app.get("/mcp/.well-known/oauth-protected-resource", oauthDiscoveryHandler);
+
+  // Token-exchange normalizing proxy. No auth middleware: this route mints the
+  // bearer, so it cannot require one. A route-scoped raw body parser captures the
+  // urlencoded exchange verbatim (the global express.json() above skips it on a
+  // content-type mismatch without consuming the stream).
+  app.post(
+    "/oauth/token",
+    express.raw({ type: "*/*", limit: "64kb" }),
+    createTokenProxyHandler(),
+  );
 
   // Streamable HTTP endpoint. POST carries JSON-RPC; GET opens the SSE stream;
   // DELETE terminates a session. The transport decides per method (in stateless

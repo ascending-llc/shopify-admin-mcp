@@ -11,31 +11,66 @@ const UpdateCustomerInputSchema = z.object({
     .describe(
       "The customer ID — a Shopify GID (gid://shopify/Customer/123) or just the numeric ID (123).",
     ),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  note: z.string().optional(),
+  firstName: z.string().optional().describe("Customer's first name."),
+  lastName: z.string().optional().describe("Customer's last name."),
+  email: z
+    .string()
+    .email()
+    .optional()
+    .describe("Customer's email address (must be unique in the store)."),
+  phone: z
+    .string()
+    .optional()
+    .describe("Customer's phone number in E.164 format, e.g. +14155551234."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Tags to set on the customer (replaces the existing tag set)."),
+  note: z.string().optional().describe("Freeform staff note about the customer."),
   emailMarketingConsent: z
     .object({
-      marketingState: z.enum(["NOT_SUBSCRIBED", "SUBSCRIBED", "UNSUBSCRIBED", "PENDING"]),
-      consentUpdatedAt: z.string().optional(),
-      marketingOptInLevel: z.enum(["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]).optional()
+      marketingState: z
+        .enum(["NOT_SUBSCRIBED", "SUBSCRIBED", "UNSUBSCRIBED", "PENDING"])
+        .describe("The customer's email marketing subscription state."),
+      consentUpdatedAt: z
+        .string()
+        .optional()
+        .describe("ISO 8601 timestamp of when consent was last updated."),
+      marketingOptInLevel: z
+        .enum(["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"])
+        .optional()
+        .describe("The opt-in level for email marketing consent.")
     })
-    .optional(),
-  taxExempt: z.boolean().optional(),
+    .optional()
+    .describe("The customer's email marketing consent settings."),
+  taxExempt: z
+    .boolean()
+    .optional()
+    .describe("Whether the customer is exempt from taxes."),
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
-        value: z.string(),
-        type: z.string().optional()
+        id: z
+          .string()
+          .optional()
+          .describe("Existing metafield GID to update (omit to create a new one)."),
+        namespace: z
+          .string()
+          .optional()
+          .describe("Metafield namespace (required when creating)."),
+        key: z
+          .string()
+          .optional()
+          .describe("Metafield key (required when creating)."),
+        value: z.string().describe("Metafield value."),
+        type: z
+          .string()
+          .optional()
+          .describe("Metafield type, e.g. single_line_text_field.")
       })
     )
     .optional()
+    .describe("Metafields to create or update on the customer.")
 });
 
 type UpdateCustomerInput = z.infer<typeof UpdateCustomerInputSchema>;
