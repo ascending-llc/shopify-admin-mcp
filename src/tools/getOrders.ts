@@ -14,7 +14,7 @@ const GetOrdersInputSchema = z.object({
     "CREATED_AT", "ORDER_NUMBER", "TOTAL_PRICE", "FINANCIAL_STATUS",
     "FULFILLMENT_STATUS", "UPDATED_AT", "CUSTOMER_NAME", "PROCESSED_AT",
     "ID", "RELEVANCE"
-  ]).optional().describe("Sort key for orders"),
+  ]).default("ID").describe("Sort key for orders. Defaults to ID (immutable) so multi-page pagination doesn't skip orders when a mutable field like UPDATED_AT shifts an order across the cursor boundary between calls."),
   reverse: z.boolean().optional().describe("Reverse the sort order"),
   query: z.string().optional().describe("Raw query string for advanced filtering (e.g. 'financial_status:paid fulfillment_status:shipped')")
 });
