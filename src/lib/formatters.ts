@@ -10,16 +10,19 @@ import { z } from "zod";
  * (different Shopify input type) and is NOT shared here.
  */
 export const shippingAddressSchema = z.object({
-  address1: z.string().optional(),
-  address2: z.string().optional(),
-  city: z.string().optional(),
-  company: z.string().optional(),
+  address1: z.string().optional().describe("Street address line 1."),
+  address2: z
+    .string()
+    .optional()
+    .describe("Street address line 2 (apartment, suite, etc.)."),
+  city: z.string().optional().describe("City."),
+  company: z.string().optional().describe("Company name."),
   countryCode: z.string().optional().describe("Two-letter country code"),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: z.string().optional().describe("Recipient first name."),
+  lastName: z.string().optional().describe("Recipient last name."),
   phone: z.string().optional().describe("Phone in E.164 format, e.g. +16135551111"),
-  provinceCode: z.string().optional(),
-  zip: z.string().optional(),
+  provinceCode: z.string().optional().describe("Province/state code, e.g. CA."),
+  zip: z.string().optional().describe("Postal/ZIP code."),
 });
 
 // ── Shared formatters ─────────────────────────────────────────────────

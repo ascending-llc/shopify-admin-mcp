@@ -6,31 +6,53 @@ import { checkUserErrors, handleToolError } from "../lib/toolUtils.js";
 // Input schema for updateProduct
 const UpdateProductInputSchema = z.object({
   id: z.string().min(1).describe("Shopify product GID, e.g. gid://shopify/Product/123"),
-  title: z.string().optional(),
-  descriptionHtml: z.string().optional(),
+  title: z.string().optional().describe("Product title."),
+  descriptionHtml: z
+    .string()
+    .optional()
+    .describe("Product description as HTML."),
   handle: z.string().optional().describe("URL slug for the product"),
-  vendor: z.string().optional(),
-  productType: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).optional(),
+  vendor: z.string().optional().describe("Product vendor / brand name."),
+  productType: z.string().optional().describe("Product type / category."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Tags to set on the product (replaces the existing tag set)."),
+  status: z
+    .enum(["ACTIVE", "DRAFT", "ARCHIVED"])
+    .optional()
+    .describe("Product status: ACTIVE, DRAFT, or ARCHIVED."),
   seo: z
     .object({
-      title: z.string().optional(),
-      description: z.string().optional(),
+      title: z.string().optional().describe("SEO page title."),
+      description: z.string().optional().describe("SEO meta description."),
     })
     .optional()
     .describe("SEO title and description for search engines"),
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
-        value: z.string(),
-        type: z.string().optional(),
+        id: z
+          .string()
+          .optional()
+          .describe("Existing metafield GID to update (omit to create a new one)."),
+        namespace: z
+          .string()
+          .optional()
+          .describe("Metafield namespace (required when creating)."),
+        key: z
+          .string()
+          .optional()
+          .describe("Metafield key (required when creating)."),
+        value: z.string().describe("Metafield value."),
+        type: z
+          .string()
+          .optional()
+          .describe("Metafield type, e.g. single_line_text_field."),
       })
     )
-    .optional(),
+    .optional()
+    .describe("Metafields to create or update on the product."),
   collectionsToJoin: z.array(z.string()).optional().describe("Collection GIDs to add the product to"),
   collectionsToLeave: z.array(z.string()).optional().describe("Collection GIDs to remove the product from"),
   redirectNewHandle: z.boolean().optional().describe("If true, old handle redirects to new handle"),

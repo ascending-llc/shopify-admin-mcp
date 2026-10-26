@@ -30,15 +30,19 @@ const CreateDraftOrderInputSchema = z.object({
   phone: z.string().optional().describe("Customer phone"),
   note: z.string().optional().describe("Note for the draft order"),
   tags: z.array(z.string()).optional().describe("Tags for the draft order"),
-  shippingAddress: shippingAddressSchema.optional(),
-  billingAddress: shippingAddressSchema.optional(),
+  shippingAddress: shippingAddressSchema
+    .optional()
+    .describe("Shipping address for the draft order."),
+  billingAddress: shippingAddressSchema
+    .optional()
+    .describe("Billing address for the draft order."),
   useCustomerDefaultAddress: z.boolean().optional().describe("Use customer's default address"),
   taxExempt: z.boolean().optional().describe("Whether the draft order is tax exempt"),
   poNumber: z.string().optional().describe("Purchase order number"),
   appliedDiscount: z
     .object({
       title: z.string().optional().describe("Discount title"),
-      description: z.string().optional(),
+      description: z.string().optional().describe("Discount description."),
       value: z.number().describe("Discount value"),
       valueType: z.enum(["FIXED_AMOUNT", "PERCENTAGE"]).describe("Whether value is fixed or percentage"),
     })

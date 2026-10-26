@@ -11,6 +11,7 @@ import {
   parsePermissionMode,
 } from "./lib/permissionMode.js";
 import { setDefaultClient, shopifyClientProxy } from "./lib/shopifyClientProxy.js";
+import { logServerInfo } from "./lib/logger.js";
 import { toolRegistry } from "./tools/registry.js";
 import { createMcpServer } from "./server/mcpServer.js";
 import { startHttpServer } from "./server/httpServer.js";
@@ -39,24 +40,9 @@ for (const { tool } of activeEntries) {
   tool.initialize(shopifyClientProxy);
 }
 
-const writeCount = activeEntries.filter((e) => e.mode === "write").length;
-console.error(
-  `[shopify-mcp] transport: ${transportMode}, permission mode: ${permissionMode} — ` +
-    `${activeEntries.length}/${toolRegistry.length} tools active ` +
-    `(${activeEntries.length - writeCount} read, ${writeCount} write)`,
-);
-
 if (transportMode === "http") {
-  // Bind a server-owned port var, NOT the generic PORT. Under Jarvis the shared
-  // `jarvis-env` secret injects PORT (e.g. 3080 for LibreChat) into every MCP pod
-  // via envFrom, which would otherwise override the image default and hijack our
-  // listener. Reading SHOPIFY_MCP_PORT (or --port) keeps us on our own port
-  // regardless of that shared default. Default 3334.
-  const PORT = Number(argv.port ?? process.env.SHOPIFY_MCP_PORT ?? 3334);
-  // Optional: advertise the per-shop Shopify authorize host in RFC 9728 metadata
-  // for direct clients. Either set it explicitly, or derive it from a configured
-  // single shop domain. Under the gateway the bearer is forwarded, so this is
-  // only consulted on an unauthenticated direct hit.
+  // Fixed port
+  const PORT = Number(argv.port) || 3334;
   const shopDomain = argv.domain || process.env.SHOPIFY_SHOP_DOMAIN;
   const oauthAuthorizationServer =
     process.env.SHOPIFY_OAUTH_AUTHORIZATION_SERVER ||
@@ -132,6 +118,7 @@ async function startStdio(): Promise<void> {
   // The proxy falls back to this client when there is no per-request context.
   setDefaultClient(startupClient);
 
+  logServerInfo("stdio", permissionMode, activeEntries);
   const server = createMcpServer(activeEntries, permissionMode, "stdio");
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -15,7 +15,6 @@ services:
       - SHOPIFY_MCP_TRANSPORT=http
       - SHOPIFY_MCP_MODE=${SHOPIFY_MCP_MODE:-read}
       - SHOPIFY_API_VERSION=2026-01
-      - SHOPIFY_MCP_PORT=3334
     ports:
       - "3334:3334"
     healthcheck:

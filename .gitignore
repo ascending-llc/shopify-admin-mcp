@@ -13,6 +13,9 @@ build/
 .env
 .env.local
 
+# Local-only spike/test scripts
+scripts/
+
 # Editors
 .idea/
 .vscode/

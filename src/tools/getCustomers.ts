@@ -6,7 +6,10 @@ import { handleToolError, edgesToNodes } from "../lib/toolUtils.js";
 // Input schema for getCustomers
 const GetCustomersInputSchema = z.object({
   searchQuery: z.string().optional().describe("Freetext search or Shopify query syntax (e.g. 'country:US tag:vip orders_count:>5')"),
-  limit: z.number().default(10),
+  limit: z
+    .number()
+    .default(10)
+    .describe("Maximum number of customers to return (default 10)"),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
   sortKey: z.enum([

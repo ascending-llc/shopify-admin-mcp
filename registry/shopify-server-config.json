@@ -9,15 +9,14 @@
     "oauth": {
       "client_id": "__SHOPIFY_CLIENT_ID__",
       "client_secret": "__SHOPIFY_CLIENT_SECRET__",
-      "authorization_url": "https://ascending-test.myshopify.com/admin/oauth/authorize",
-      "token_url": "https://ascending-test.myshopify.com/admin/oauth/access_token",
-      "scope": "read_orders read_all_orders read_products read_customers read_inventory read_locations read_fulfillments read_draft_orders read_discounts read_price_rules read_returns read_metaobjects read_content",
+      "authorization_url": "https://admin.shopify.com/oauth/authorize",
+      "token_url": "https://ncfvjx-qi.myshopify.com/admin/oauth/access_token",
+      "scope": "read_orders read_all_orders read_products read_customers read_inventory read_locations read_fulfillments read_discounts read_price_rules read_returns read_metaobjects read_content",
       "grant_types_supported": ["authorization_code"],
-      "token_endpoint_auth_methods_supported": ["client_secret_post"],
-      "additional_params": { "grant_options[]": "per-user" }
+      "token_endpoint_auth_methods_supported": ["client_secret_post"]
     },
     "headers": {
-      "X-Shopify-Shop-Domain": "ascending-test.myshopify.com"
+      "X-Shopify-Shop-Domain": "ncfvjx-qi.myshopify.com"
     }
   }
 }

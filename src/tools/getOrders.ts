@@ -6,15 +6,21 @@ import { formatOrderSummary } from "../lib/formatters.js";
 
 // Input schema for getOrders
 const GetOrdersInputSchema = z.object({
-  status: z.enum(["any", "open", "closed", "cancelled"]).default("any"),
-  limit: z.number().default(10),
+  status: z
+    .enum(["any", "open", "closed", "cancelled"])
+    .default("any")
+    .describe("Filter by order status (default 'any')"),
+  limit: z
+    .number()
+    .default(10)
+    .describe("Maximum number of orders to return (default 10)"),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
   sortKey: z.enum([
     "CREATED_AT", "ORDER_NUMBER", "TOTAL_PRICE", "FINANCIAL_STATUS",
     "FULFILLMENT_STATUS", "UPDATED_AT", "CUSTOMER_NAME", "PROCESSED_AT",
     "ID", "RELEVANCE"
-  ]).optional().describe("Sort key for orders"),
+  ]).default("ID").describe("Sort key for orders. Defaults to ID (immutable) so multi-page pagination doesn't skip orders when a mutable field like UPDATED_AT shifts an order across the cursor boundary between calls."),
   reverse: z.boolean().optional().describe("Reverse the sort order"),
   query: z.string().optional().describe("Raw query string for advanced filtering (e.g. 'financial_status:paid fulfillment_status:shipped')")
 });

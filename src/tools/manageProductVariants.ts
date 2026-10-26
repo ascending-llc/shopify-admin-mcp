@@ -16,10 +16,13 @@ const VariantSchema = z.object({
   sku: z.string().optional().describe("SKU for the variant (mapped to inventoryItem.sku)"),
   tracked: z.boolean().optional().describe("Whether inventory is tracked. Set false for print-on-demand."),
   taxable: z.boolean().optional().describe("Whether the variant is taxable"),
-  barcode: z.string().optional(),
+  barcode: z.string().optional().describe("Barcode (UPC, EAN, ISBN, etc.) for the variant."),
   weight: z.number().optional().describe("Weight of the variant"),
   weightUnit: z.enum(["GRAMS", "KILOGRAMS", "OUNCES", "POUNDS"]).optional().describe("Unit of weight"),
-  optionValues: z.array(VariantOptionSchema).optional(),
+  optionValues: z
+    .array(VariantOptionSchema)
+    .optional()
+    .describe("The option values that identify this variant, e.g. Size=Large, Color=Black."),
 });
 
 const ManageProductVariantsInputSchema = z.object({

@@ -12,7 +12,10 @@ const GetCustomerOrdersInputSchema = z.object({
     .describe(
       "The customer ID — a Shopify GID (gid://shopify/Customer/123) or just the numeric ID (123).",
     ),
-  limit: z.number().default(10),
+  limit: z
+    .number()
+    .default(10)
+    .describe("Maximum number of orders to return (default 10)"),
   after: z.string().optional().describe("Cursor for forward pagination"),
   before: z.string().optional().describe("Cursor for backward pagination"),
   sortKey: z.enum([

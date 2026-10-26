@@ -9,45 +9,82 @@ let shopifyClient: GraphQLClient;
 // Input schema for updateOrder
 // Based on https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderupdate
 const UpdateOrderInputSchema = z.object({
-  id: z.string().min(1),
-  tags: z.array(z.string()).optional(),
-  email: z.string().email().optional(),
-  note: z.string().optional(),
+  id: z
+    .string()
+    .min(1)
+    .describe("The order's Shopify GID, e.g. gid://shopify/Order/123."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Tags to set on the order (replaces the existing tag set)."),
+  email: z
+    .string()
+    .email()
+    .optional()
+    .describe("Customer-facing email address for the order."),
+  note: z.string().optional().describe("Freeform staff note on the order."),
   customAttributes: z
     .array(
       z.object({
-        key: z.string(),
-        value: z.string()
+        key: z.string().describe("Attribute name."),
+        value: z.string().describe("Attribute value.")
       })
     )
-    .optional(),
+    .optional()
+    .describe("Custom name/value attributes to attach to the order."),
   metafields: z
     .array(
       z.object({
-        id: z.string().optional(),
-        namespace: z.string().optional(),
-        key: z.string().optional(),
-        value: z.string(),
-        type: z.string().optional()
+        id: z
+          .string()
+          .optional()
+          .describe("Existing metafield GID to update (omit to create a new one)."),
+        namespace: z
+          .string()
+          .optional()
+          .describe("Metafield namespace (required when creating)."),
+        key: z
+          .string()
+          .optional()
+          .describe("Metafield key (required when creating)."),
+        value: z.string().describe("Metafield value."),
+        type: z
+          .string()
+          .optional()
+          .describe("Metafield type, e.g. single_line_text_field.")
       })
     )
-    .optional(),
-  phone: z.string().optional(),
-  poNumber: z.string().optional(),
+    .optional()
+    .describe("Metafields to create or update on the order."),
+  phone: z.string().optional().describe("Customer phone number for the order."),
+  poNumber: z
+    .string()
+    .optional()
+    .describe("Purchase order number for the order."),
   shippingAddress: z
     .object({
-      address1: z.string().optional(),
-      address2: z.string().optional(),
-      city: z.string().optional(),
-      company: z.string().optional(),
-      countryCode: z.string().optional(),
-      firstName: z.string().optional(),
-      lastName: z.string().optional(),
-      phone: z.string().optional(),
-      provinceCode: z.string().optional(),
-      zip: z.string().optional()
+      address1: z.string().optional().describe("Street address line 1."),
+      address2: z
+        .string()
+        .optional()
+        .describe("Street address line 2 (apartment, suite, etc.)."),
+      city: z.string().optional().describe("City."),
+      company: z.string().optional().describe("Company name."),
+      countryCode: z
+        .string()
+        .optional()
+        .describe("Two-letter ISO country code, e.g. US."),
+      firstName: z.string().optional().describe("Recipient first name."),
+      lastName: z.string().optional().describe("Recipient last name."),
+      phone: z.string().optional().describe("Recipient phone number."),
+      provinceCode: z
+        .string()
+        .optional()
+        .describe("Province/state code, e.g. CA."),
+      zip: z.string().optional().describe("Postal/ZIP code.")
     })
     .optional()
+    .describe("Shipping address for the order.")
 });
 
 type UpdateOrderInput = z.infer<typeof UpdateOrderInputSchema>;
